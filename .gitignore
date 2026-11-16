@@ -1,3 +1,4 @@
 # Binario compilado: se regenera con go build
 *.exe
 *.test
+dist/

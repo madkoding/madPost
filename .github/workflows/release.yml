@@ -1,0 +1,44 @@
+# Al subir un tag vX.Y.Z: prueba, compila, arma el instalador y publica el release.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Tests
+        run: go test ./...
+
+      - name: Compilar
+        run: go build -ldflags "-H windowsgui -s -w" -o dist/madPost.exe .
+
+      - name: Instalador
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\madPost.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive dist\madPost.exe "dist\madPost-$version-portable.zip"
+
+      - name: Publicar release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          gh release create "${{ github.ref_name }}" `
+            "dist\madPost-setup-$version.exe" "dist\madPost-$version-portable.zip" `
+            --title "madPost ${{ github.ref_name }}" --generate-notes
